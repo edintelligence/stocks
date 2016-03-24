@@ -165,6 +165,69 @@ class TimeWindowBestPerformingDataProvider(DataProvider):
     def getTestData(self):
         return self.testData, self.testTargets
 
+class TimeWindowBestPerformingPercentageDataProvider(DataProvider):
+    def __init__(self, timehorizon, testratio = 0.1, path = 'data/', rng = None):
+        super(TimeWindowBestPerformingPercentageDataProvider, self).__init__('TimeWindowBestPerformingPercentageDataProvider', path, rng)
+        # prepare data
+        X = []
+        for dataset in self.data_list:
+            if len(dataset[0]) == 3926:
+                X.append(dataset[2:6])
+
+        x_np = np.array(X)
+        #print x_np.shape
+        time_series = x_np.reshape(-1, 3926, 4).swapaxes(0,1).reshape(3926,-1)
+
+        input_data = np.zeros((x_np.shape[2] - timehorizon + 1,
+                               x_np.shape[0] * x_np.shape[1] * (timehorizon - 1) \
+                               + x_np.shape[0]))
+
+
+        for i in range(x_np.shape[2] - timehorizon + 1):
+            for j in range(timehorizon-1):
+                input_data[i,x_np.shape[0] * x_np.shape[1]*j:(j+1)*x_np.shape[0] * x_np.shape[1]] = \
+                                   x_np[:,:,i+j:i+j+1].reshape(-1)
+
+            input_data[i,x_np.shape[0] * x_np.shape[1]*(timehorizon-1):] = \
+                        x_np[:,0,i+timehorizon-1:i+timehorizon].reshape(-1)
+
+        
+        targets = np.zeros((3926, x_np.shape[0]))
+        for i in range(3926):
+            targets[i, np.argmax((x_np[:,-1,i] - x_np[:,0,i]) / x_np[:,0,i])] = 1
+
+        targets_time = targets[timehorizon-1:]
+        
+        data = input_data
+        targets = targets_time
+        
+        indizes = self.rng.permutation(data.shape[0])
+        trainingIndizes = indizes[:-int(indizes.shape[0]*testratio)]
+        testIndizes = indizes[-int(indizes.shape[0]*testratio):]
+        
+        self.trainingData = data[trainingIndizes, :]
+        self.testData = data[testIndizes, :]
+        
+        self.trainingTargets = targets[trainingIndizes, :]
+        self.testTargets = targets[testIndizes, :]
+        
+        change = np.zeros((3926, x_np.shape[0]))
+        for i in range(3926):
+            change[i] = (x_np[:,-1,i] - x_np[:,0,i])
+        change = change[timehorizon-1:]
+        
+        self.trainingChange = change[trainingIndizes, :]
+        self.testChange = change[testIndizes, :]
+        
+    def getChange(self):
+        return self.trainingChange, self.testChange
+        
+        
+    def getTrainingData(self):
+        return self.trainingData, self.trainingTargets
+    
+    def getTestData(self):
+        return self.testData, self.testTargets
 
     
 class TimeWindow3DDataProvider(DataProvider):
